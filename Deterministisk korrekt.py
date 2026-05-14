@@ -13,7 +13,7 @@ np.random.seed(SEED)
 
 m = Model("DUC")
 m.setParam('Seed', SEED)
-m.setParam('Threads', 1)        # Reproducerbarhed
+m.setParam('Threads', 1) 
 m.setParam('Method', 2)
 
 # -------------------------
