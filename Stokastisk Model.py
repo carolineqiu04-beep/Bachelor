@@ -35,7 +35,8 @@ T3 = ieee_data["T^3"].values
 DT0 = ieee_data["DT0"].values
 I = ieee_data.shape[0]
 
-# Scenarier
+# Vind scenarier
+
 wind_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/Forecasts_Hour (2).xlsx")
 wind_data['HourDK'] = pd.to_datetime(wind_data['HourDK'])
 
