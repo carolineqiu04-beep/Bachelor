@@ -15,25 +15,25 @@ ieee_data = pd.read_excel(
     "/Users/carolineqiu/Desktop/Data/IEEE data-kopi.xlsx",
     header=None, decimal=','
 )
-ieee_data.columns = [
-    "generator_location_bus_id",
-    "P_underline", "P_bar", "c", "f",
-    "C^3", "C^2", "C^1",
-    "UT_i", "DT_i", "RU", "RD", "SU", "SD",
-    "T^3", "T^2", "T^1", "DT0",
+ieee_data.columns = ["generator_location_bus_id", "P_underline", "P_bar", "c", "f", "C^3", "C^2",
+                     "C^1", "UT_i", "DT_i", "RU", "RD", "SU", "SD", "T^3", "T^2", "T^1", "DT0" 
 ]
-P_bar         = ieee_data["P_bar"].values
-P_underline   = ieee_data["P_underline"].values
-UT_i          = ieee_data["UT_i"].astype(int).values
-DT_i          = ieee_data["DT_i"].astype(int).values
-RU, RD        = ieee_data["RU"].values, ieee_data["RD"].values
-SU, SD        = ieee_data["SU"].values, ieee_data["SD"].values
-c, f          = ieee_data["c"].values, ieee_data["f"].values
-T1            = ieee_data["T^1"].astype(int).values
-T2            = ieee_data["T^2"].astype(int).values
-T3            = ieee_data["T^3"].astype(int).values
-DT0           = ieee_data["DT0"].astype(int).values
-I             = ieee_data.shape[0]
+
+P_bar = ieee_data["P_bar"].values
+P_underline = ieee_data["P_underline"].values
+UT_i = ieee_data["UT_i"].values
+DT_i = ieee_data["DT_i"].values
+RU = ieee_data["RU"].values
+RD = ieee_data["RD"].values
+SU = ieee_data["SU"].values
+SD = ieee_data["SD"].values
+c = ieee_data["c"].values
+f = ieee_data["f"].values
+T1 = ieee_data["T^1"].values
+T2 = ieee_data["T^2"].values
+T3 = ieee_data["T^3"].values
+DT0 = ieee_data["DT0"].values
+I = ieee_data.shape[0]
 
 # Scenarier
 wind_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/Forecasts_Hour (2).xlsx")
