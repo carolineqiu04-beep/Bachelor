@@ -1,7 +1,7 @@
 import pandas as pd
-from gurobipy import *
 import numpy as np
-import matplotlib.pyplot as plt
+import gurobipy as gp
+from gurobipy import GRB, quicksum
 from scipy.stats import weibull_min, qmc
 
 # -------------------------
