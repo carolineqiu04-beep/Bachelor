@@ -1,75 +1,57 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from scipy.stats import weibull_min, qmc
-from gurobipy import *
-import random
+import gurobipy as gp
+from gurobipy import GRB, quicksum
 # -------------------------
 # Data
 # -------------------------
 wind_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/Forecasts_Hour (2).xlsx")
-
-# Konverter tid
 wind_data['HourDK'] = pd.to_datetime(wind_data['HourDK'])
 
 wind_filtered = wind_data[
-    (wind_data['ForecastType'].isin(["Offshore Wind", "Onshore Wind"])) &
+    wind_data['ForecastType'].isin(["Offshore Wind", "Onshore Wind"]) &
     (wind_data['PriceArea'] == "DK2") &
-    (~wind_data['HourDK'].dt.year.isin([2019, 2026])) &
-    (wind_data['HourDK'].dt.month.isin([12,1,2]))   # vinter
+    ~wind_data['HourDK'].dt.year.isin([2019, 2026]) &
+    wind_data['HourDK'].dt.month.isin([12, 1, 2]) 
 ].copy()
 
-dayahead = (
-    wind_filtered
-    .dropna(subset=['ForecastDayAhead'])
-    .groupby('HourDK', as_index=False)['ForecastDayAhead']
-    .sum()
-)
-
-dayahead['hour'] = dayahead['HourDK'].dt.hour
-
 avg_winter_day = (
-    dayahead
-    .groupby('hour')['ForecastDayAhead']
-    .mean()
+    wind_filtered.dropna(subset=['ForecastDayAhead'])
+                 .groupby('HourDK')['ForecastDayAhead'].sum() 
+                 .groupby(lambda ts: ts.hour).mean() 
 )
 
-demand_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/IEEE Demand.xlsx", header=None)
+demand_data   = pd.read_excel("/Users/carolineqiu/Desktop/Data/IEEE Demand.xlsx", header=None)
 demand_matrix = demand_data.apply(pd.to_numeric, errors='coerce').fillna(0).to_numpy()
-N = demand_matrix.shape[0]   # antal busser
-T = demand_matrix.shape[1]
-
-D = {n: {t: demand_matrix[n,t] for t in range(T)} for n in range(N)}
-print("\n--- Samlet efterspørgsel per time ---")
-for t in range(T):
-    total_demand = sum(D[n][t] for n in range(N))
-    print(f"t={t:02d}: {total_demand:.0f} MW")
+N, T = demand_matrix.shape
+assert T == 24, f"Forventede 24 timer, fik {T}"
+D = {n: {t: demand_matrix[n, t] for t in range(T)} for n in range(N)}
 
 ieee_data = pd.read_excel(
     "/Users/carolineqiu/Desktop/Data/IEEE data-kopi.xlsx",
-    header=None,        # Første række er data, ikke header
-    decimal=','         # Fortolk komma som decimal
+    header=None,     
+    decimal=','      
 )
 
 ieee_data.columns = [
     "generator_location_bus_id",
-    "P_underline", # Minimum produktionsniveau
-    "P_bar", # Maksimal produktionsniveau
-    "c", # Variable omkostninger
-    "f", # Faste omkostninger
-    "C^3", # Opstartsomkostning i kategori 3 (kold)
-    "C^2", # Opstartsomkostning i kategori 2 (lunken)
-    "C^1", # Opstartsomkostning i kategori 1 (varm)
-    "UT_i", #Minimum driftstid (up time)
-    "DT_i", #Minimum sluktid (down time)
-    "RU", # Ramp up rate
-    "RD", # Ramp down rate
-    "SU", #Start up ramp limit
-    "SD", #Shut down ramp limit
-    "T^3", # Antal perioder enhed i skal være slukket for at være i kategori 3 (kold)
-    "T^2", # Antal perioder enhed i skal være slukket for at være i kategori 2 (lunken)
-    "T^1", # Antal perioder enhed i skal være slukket for at være i kategori 2 (varm)
-    "DT0" # Initial down time
+    "P_underline", 
+    "P_bar",
+    "c",
+    "f",
+    "C^3", 
+    "C^2",
+    "C^1", 
+    "UT_i", 
+    "DT_i", 
+    "RU", 
+    "RD", 
+    "SU", 
+    "SD", 
+    "T^3", 
+    "T^2", 
+    "T^1",
+    "DT0" 
 ]
 
 P_bar = ieee_data["P_bar"].values
@@ -88,7 +70,6 @@ T3 = ieee_data["T^3"].values
 DT0 = ieee_data["DT0"].values
 
 I = ieee_data.shape[0]
-
 
 # -------------------------
 # Model
@@ -109,9 +90,9 @@ for i in range(I):
     lukewarm = range(dt + 3,  dt + 6)      
     cold     = range(dt + 6,  dt + 16)     
     T_s[i] = [warm, lukewarm, cold]
-c_US = 50000   # undersupply penalty
-c_OS = 50000    # oversupply penalty
-S_i = [len(C[i]) for i in range(I)] # Mængden af kategorier
+c_US = 50000   
+c_OS = 50000  
+S_i = [len(C[i]) for i in range(I)] 
 w = {t: avg_winter_day.loc[t] for t in range(24)}
 
 #------- Variable --------
