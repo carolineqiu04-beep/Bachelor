@@ -4,9 +4,8 @@ import gurobipy as gp
 from gurobipy import GRB, quicksum
 from scipy.stats import weibull_min, qmc
 
-# -------------------------
 # Data
-# -------------------------
+
 demand_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/IEEE Demand.xlsx", header=None)
 demand_matrix = demand_data.apply(pd.to_numeric, errors='coerce').fillna(0).to_numpy()
 N, T = demand_matrix.shape
@@ -23,7 +22,6 @@ ieee_data.columns = [
     "UT_i", "DT_i", "RU", "RD", "SU", "SD",
     "T^3", "T^2", "T^1", "DT0",
 ]
-
 P_bar         = ieee_data["P_bar"].values
 P_underline   = ieee_data["P_underline"].values
 UT_i          = ieee_data["UT_i"].astype(int).values
@@ -37,9 +35,7 @@ T3            = ieee_data["T^3"].astype(int).values
 DT0           = ieee_data["DT0"].astype(int).values
 I             = ieee_data.shape[0]
 
-I = ieee_data.shape[0]
-
-#------- Scenarier --------
+# Scenarier
 wind_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/Forecasts_Hour (2).xlsx")
 wind_data['HourDK'] = pd.to_datetime(wind_data['HourDK'])
 
@@ -103,12 +99,10 @@ for xi in scenarios:
     for t in range(T):
         w[t,xi] = max(0, simulated_lhs_current[t,xi])
 
-# -------------------------
 # Model
-# -------------------------
 m = Model("SUC")
 
-#------- Parametre --------
+# Parametre
 C = {}
 for i in range(I):
     C[i] = [
@@ -125,7 +119,9 @@ for i in range(I):
 c_US = 50000  
 c_OS = 50000 
 S_i = [len(C[i]) for i in range(I)] 
-#------- First stage decision variables --------
+
+# Første-fase beslutningsvariable
+
 u = m.addVars(I, T, vtype=GRB.BINARY, name="u")  
 v = m.addVars(I, T, vtype=GRB.BINARY, name="v")   
 y = m.addVars(I, T, vtype=GRB.BINARY, name="y") 
@@ -138,7 +134,8 @@ c_SU = {}
 for i in range(I):
     for t in range(T):
         c_SU[i,t] = quicksum(C[i][s] * delta[i,t,s] for s in range(S_i[i]))
-#------- Second stage decision variables --------
+        
+# Anden-fase beslutningsvariable
 p = {}
 s_plus = {}
 s_minus = {}
@@ -150,7 +147,9 @@ for xi in scenarios:
         for t in range(T):
             s_plus[n,t,xi] = m.addVar(lb=0, name=f"splus_{n}_{t}_{xi}")
             s_minus[n,t,xi] = m.addVar(lb=0, name=f"sminus_{n}_{t}_{xi}")
-#------- First-stage Bi-betingelser --------
+            
+# Bi-betinglinger hørende til første-fase
+
 # (2.2)-(2.4)
 for i in range(I):
     if DT0[i] > 0:
@@ -209,7 +208,8 @@ for i in range(I):
             else:
                 m.addConstr(delta[i, t, s] <= relevant_y)
 
-#------- Second-stage Bi-betingelser --------
+# Bi-betinglinger hørende til anden-fase
+
 # (2.16)-(2.17)
 for xi in scenarios:
     for i in range(I):
@@ -239,7 +239,7 @@ for xi in scenarios:
             quicksum(s_plus[n,t,xi] - s_minus[n,t,xi] for n in range(N))  ==
             quicksum(D[n][t] for n in range(N)))
 
-#------- Objektfunktion--------
+# Objektfunktion
 
 first_stage_cost = quicksum(f[i]*u[i,t] + c_SU[i,t] for i in range(I) for t in range(T))
 # (2.15)
@@ -254,6 +254,6 @@ for xi in scenarios:
 # (2.1)
 m.setObjective(first_stage_cost + expected_Q, GRB.MINIMIZE)
 
-#------- Løsning --------
+# Løsning
 m.optimize()
 print('Objective value: %g' % m.objVal)
