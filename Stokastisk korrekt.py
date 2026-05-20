@@ -9,7 +9,7 @@ from scipy.stats import weibull_min, qmc
 demand_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/IEEE Demand.xlsx", header=None)
 demand_matrix = demand_data.apply(pd.to_numeric, errors='coerce').fillna(0).to_numpy()
 N, T = demand_matrix.shape
-D = {n: {t: demand_matrix[n, t] for t in range(T)} for n in range(N)}  # efterspørgsel per bus per time
+D = {n: {t: demand_matrix[n, t] for t in range(T)} for n in range(N)}
 
 ieee_data = pd.read_excel(
     "/Users/carolineqiu/Desktop/Data/IEEE data-kopi.xlsx",
@@ -58,28 +58,28 @@ abs_noise       = noise.abs()
 positive_share  = (noise > 0).mean()
 negative_share  = 1.0 - positive_share
 
-daily_noise_profile = noise.groupby(noise.index.hour).mean().values  # 24 timer
+daily_noise_profile = noise.groupby(noise.index.hour).mean().values 
 
 hourly_weibull_params = []
 for h in range(24):
-    hour_noise = abs_noise[noise.index.hour == h]  # Absolut fejl for time h
-    shape_h, loc_h, scale_h = weibull_min.fit(hour_noise, floc=0) # Fit Weibull
-    hourly_weibull_params.append((shape_h, scale_h))  # Gem shape og scale
+    hour_noise = abs_noise[noise.index.hour == h] 
+    shape_h, loc_h, scale_h = weibull_min.fit(hour_noise, floc=0) 
+    hourly_weibull_params.append((shape_h, scale_h)) 
 
 n_hours = 24
 n_scenarios = 200
 rho = 0.6
 scenarios = range(n_scenarios)
 
-sampler = qmc.LatinHypercube(d=n_hours, seed=SEED)  # dimension = 24 timer
-lhs_sample = sampler.random(n=n_scenarios)  # n_scenarios = antal kolonner
+sampler = qmc.LatinHypercube(d=n_hours, seed=SEED)
+lhs_sample = sampler.random(n=n_scenarios) 
 
 noise_sim_lhs = np.zeros((n_hours, n_scenarios))
 
 for h in range(n_hours):
     shape_h, scale_h = hourly_weibull_params[h]
-    u = lhs_sample[:, h]  # LHS-probabilities for time h
-    noise_size = weibull_min.ppf(u, shape_h, scale=scale_h)  # Invers CDF
+    u = lhs_sample[:, h]  
+    noise_size = weibull_min.ppf(u, shape_h, scale=scale_h)
     sign = np.random.choice([-1,1], size=n_scenarios, p=[negative_share, positive_share])
     noise_sim_lhs[h, :] = noise_size * sign
 
