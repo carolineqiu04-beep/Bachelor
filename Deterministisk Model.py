@@ -33,25 +33,8 @@ ieee_data = pd.read_excel(
     decimal=','      
 )
 
-ieee_data.columns = [
-    "generator_location_bus_id",
-    "P_underline", 
-    "P_bar",
-    "c",
-    "f",
-    "C^3", 
-    "C^2",
-    "C^1", 
-    "UT_i", 
-    "DT_i", 
-    "RU", 
-    "RD", 
-    "SU", 
-    "SD", 
-    "T^3", 
-    "T^2", 
-    "T^1",
-    "DT0" 
+ieee_data.columns = ["generator_location_bus_id", "P_underline", "P_bar", "c", "f", "C^3", "C^2",
+                     "C^1", "UT_i", "DT_i", "RU", "RD", "SU", "SD", "T^3", "T^2", "T^1", "DT0" 
 ]
 
 P_bar = ieee_data["P_bar"].values
