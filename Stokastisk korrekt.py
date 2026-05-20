@@ -3,104 +3,66 @@ from gurobipy import *
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import weibull_min, qmc
-import random
-import json
-import webbrowser
-import os
 
 # -------------------------
 # Data
 # -------------------------
 demand_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/IEEE Demand.xlsx", header=None)
 demand_matrix = demand_data.apply(pd.to_numeric, errors='coerce').fillna(0).to_numpy()
-N = demand_matrix.shape[0]   # antal busser
-T = demand_matrix.shape[1]
-# Summér over alle busser for hver periode (axis=0)
-D = {n: {t: demand_matrix[n,t] for t in range(T)} for n in range(N)}
+N, T = demand_matrix.shape
+D = {n: {t: demand_matrix[n, t] for t in range(T)} for n in range(N)}  # efterspørgsel per bus per time
 
-# Læs Excel uden at bruge første række som header, og angiv decimalseparator
 ieee_data = pd.read_excel(
     "/Users/carolineqiu/Desktop/Data/IEEE data-kopi.xlsx",
-    header=None,        # Første række er data, ikke header
-    decimal=','         # Fortolk komma som decimal
+    header=None, decimal=','
 )
-
 ieee_data.columns = [
     "generator_location_bus_id",
-    "P_underline", # Minimum produktionsniveau
-    "P_bar", # Maksimal produktionsniveau
-    "c", # Variable omkostninger
-    "f", # Faste omkostninger
-    "C^3", # Opstartsomkostning i kategori 3 (kold)
-    "C^2", # Opstartsomkostning i kategori 2 (lunken)
-    "C^1", # Opstartsomkostning i kategori 1 (varm)
-    "UT_i", #Minimum driftstid (up time)
-    "DT_i", #Minimum sluktid (down time)
-    "RU", # Ramp up rate
-    "RD", # Ramp down rate
-    "SU", #Start up ramp limit
-    "SD", #Shut down ramp limit
-    "T^3", # Antal perioder enhed i skal være slukket for at være i kategori 3 (kold)
-    "T^2", # Antal perioder enhed i skal være slukket for at være i kategori 2 (lunken)
-    "T^1", # Antal perioder enhed i skal være slukket for at være i kategori 2 (varm)
-    "DT0" # Initial down time
+    "P_underline", "P_bar", "c", "f",
+    "C^3", "C^2", "C^1",
+    "UT_i", "DT_i", "RU", "RD", "SU", "SD",
+    "T^3", "T^2", "T^1", "DT0",
 ]
 
-P_bar = ieee_data["P_bar"].values
-P_underline = ieee_data["P_underline"].values
-UT_i = ieee_data["UT_i"].values
-DT_i = ieee_data["DT_i"].values
-RU = ieee_data["RU"].values
-RD = ieee_data["RD"].values
-SU = ieee_data["SU"].values
-SD = ieee_data["SD"].values
-c = ieee_data["c"].values
-f = ieee_data["f"].values
-T1 = ieee_data["T^1"].values
-T2 = ieee_data["T^2"].values
-T3 = ieee_data["T^3"].values
-DT0 = ieee_data["DT0"].values
+P_bar         = ieee_data["P_bar"].values
+P_underline   = ieee_data["P_underline"].values
+UT_i          = ieee_data["UT_i"].astype(int).values
+DT_i          = ieee_data["DT_i"].astype(int).values
+RU, RD        = ieee_data["RU"].values, ieee_data["RD"].values
+SU, SD        = ieee_data["SU"].values, ieee_data["SD"].values
+c, f          = ieee_data["c"].values, ieee_data["f"].values
+T1            = ieee_data["T^1"].astype(int).values
+T2            = ieee_data["T^2"].astype(int).values
+T3            = ieee_data["T^3"].astype(int).values
+DT0           = ieee_data["DT0"].astype(int).values
+I             = ieee_data.shape[0]
 
 I = ieee_data.shape[0]
 
 #------- Scenarier --------
 wind_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/Forecasts_Hour (2).xlsx")
-
 wind_data['HourDK'] = pd.to_datetime(wind_data['HourDK'])
 
 wind_filtered = wind_data[
-    (wind_data['ForecastType'].isin(["Offshore Wind", "Onshore Wind"])) &
+    wind_data['ForecastType'].isin(["Offshore Wind", "Onshore Wind"]) &
     (wind_data['PriceArea'] == "DK2") &
-    (~wind_data['HourDK'].dt.year.isin([2019, 2026])) &
-    (wind_data['HourDK'].dt.month.isin([12,1,2]))   # vinter
+    ~wind_data['HourDK'].dt.year.isin([2019, 2026]) &
+    wind_data['HourDK'].dt.month.isin([12, 1, 2])
 ].copy()
 
-dayahead = (
-    wind_filtered
-    .dropna(subset=['ForecastDayAhead'])
-    .groupby('HourDK', as_index=False)['ForecastDayAhead']
-    .sum()
-)
+dayahead = (wind_filtered.dropna(subset=['ForecastDayAhead'])
+            .groupby('HourDK', as_index=False)['ForecastDayAhead'].sum())
+current  = (wind_filtered.dropna(subset=['ForecastCurrent'])
+            .groupby('HourDK', as_index=False)['ForecastCurrent'].sum())
 
-current = (
-    wind_filtered
-    .dropna(subset=['ForecastCurrent'])
-    .groupby('HourDK', as_index=False)['ForecastCurrent']
-    .sum()
-)
+wind = pd.merge(dayahead, current, on='HourDK', how='inner').set_index('HourDK')
 
-wind = pd.merge(dayahead, current, on='HourDK', how='inner')
-
-wind.set_index('HourDK', inplace=True)
-
-noise = wind['ForecastCurrent'] - wind['ForecastDayAhead']
-abs_noise = np.abs(noise)
-
-positive_share = (noise > 0).mean()
-negative_share = (noise < 0).mean()
+noise           = wind['ForecastCurrent'] - wind['ForecastDayAhead']
+abs_noise       = noise.abs()
+positive_share  = (noise > 0).mean()
+negative_share  = 1.0 - positive_share
 
 daily_noise_profile = noise.groupby(noise.index.hour).mean().values  # 24 timer
-print(daily_noise_profile)
 
 hourly_weibull_params = []
 for h in range(24):
@@ -113,9 +75,6 @@ n_scenarios = 200
 rho = 0.6
 scenarios = range(n_scenarios)
 
-positive_share = 0.505
-negative_share = 0.495
-
 sampler = qmc.LatinHypercube(d=n_hours, seed=SEED)  # dimension = 24 timer
 lhs_sample = sampler.random(n=n_scenarios)  # n_scenarios = antal kolonner
 
@@ -123,10 +82,8 @@ noise_sim_lhs = np.zeros((n_hours, n_scenarios))
 
 for h in range(n_hours):
     shape_h, scale_h = hourly_weibull_params[h]
-    # Brug LHS til at få 'noise_size' for time h
     u = lhs_sample[:, h]  # LHS-probabilities for time h
     noise_size = weibull_min.ppf(u, shape_h, scale=scale_h)  # Invers CDF
-    # Tilføj fortegn baseret på empiriske sandsynligheder
     sign = np.random.choice([-1,1], size=n_scenarios, p=[negative_share, positive_share])
     noise_sim_lhs[h, :] = noise_size * sign
 
@@ -139,21 +96,12 @@ for s in range(n_scenarios):
 dayahead_day = wind['ForecastDayAhead'].head(24).values.reshape(-1,1)
 simulated_lhs_current = np.maximum(dayahead_day + noise_sim_lhs,0)
 
-n_scenarios = simulated_lhs_current.shape[1]
-
-scenarios = range(n_scenarios)
-
 p_scen_prob = {xi: 1/n_scenarios for xi in scenarios}
 
 w = {}
 for xi in scenarios:
     for t in range(T):
         w[t,xi] = max(0, simulated_lhs_current[t,xi])
-
-for xi in scenarios:
-    print(f"\nScenarie {xi}:")
-    for t in range(T):
-        print(f"  t={t:02d}: ε={noise_sim_lhs[t,xi]:7.1f} MW, W={w[t,xi]:7.1f} MW")
 
 # -------------------------
 # Model
