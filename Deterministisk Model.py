@@ -2,9 +2,9 @@ import pandas as pd
 import numpy as np
 import gurobipy as gp
 from gurobipy import GRB, quicksum
-# -------------------------
+
 # Data
-# -------------------------
+
 wind_data = pd.read_excel("/Users/carolineqiu/Desktop/Data/Forecasts_Hour (2).xlsx")
 wind_data['HourDK'] = pd.to_datetime(wind_data['HourDK'])
 
@@ -68,15 +68,14 @@ T1 = ieee_data["T^1"].values
 T2 = ieee_data["T^2"].values
 T3 = ieee_data["T^3"].values
 DT0 = ieee_data["DT0"].values
-
 I = ieee_data.shape[0]
 
-# -------------------------
 # Model
-# -------------------------
+
 m = Model("DUC")
 
-#------- Parametre --------
+# Parametre
+
 C = {}
 for i in range(I):
     C[i] = [
@@ -95,7 +94,7 @@ c_OS = 50000
 S_i = [len(C[i]) for i in range(I)] 
 w = {t: avg_winter_day.loc[t] for t in range(24)}
 
-#------- Variable --------
+# Variable
 u = m.addVars(I, T, vtype=GRB.BINARY, name="u") 
 v = m.addVars(I, T, vtype=GRB.BINARY, name="v") 
 y = m.addVars(I, T, vtype=GRB.BINARY, name="y")  
@@ -203,14 +202,16 @@ for t in range(T):
         ==
         quicksum(D[n][t] for n in range(N)))
     
-#Objektfunktion (1.1)
+# Objektfunktion 
+
+# (1.1)
 m.setObjective(
     quicksum(f[i]*u[i,t] + c_SU[i,t] for i in range(I) for t in range(T))
     + quicksum(c[i]*p[i,t] for i in range(I) for t in range(T))
     + quicksum(c_US*s_minus[n,t] + c_OS*s_plus[n,t] for n in range(N) for t in range(T)),
     GRB.MINIMIZE)
 
-#------- Løsning --------
+# Løsning
 m.optimize()
 print('Objective value: %g' % m.objVal)
 
